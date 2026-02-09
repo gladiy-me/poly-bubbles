@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>PolyBubbles: Pro Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        :root { 
+            --poly-bg: #030816; 
+            --poly-blue: #2458f0; /* Фирменный синий */
+            --poly-blue-glow: rgba(36, 88, 240, 0.4);
+            --poly-green: #00d395;
+            --poly-red: #ff4a5a;
+            --poly-text: #ffffff;
+        }
+        
+        body { 
+            margin: 0; background: var(--poly-bg); 
+            background-image: radial-gradient(circle at 20% 20%, #0a132e 0%, #030816 100%);
+            overflow: hidden; font-family: 'Inter', sans-serif; color: var(--poly-text);
+        }
+        
+        /* HEADER В СТИЛЕ POLYMARKET */
+        .header {
+            position: absolute; top: 0; left: 0; right: 0; padding: 14px 24px;
+            background: rgba(3, 8, 22, 0.8); backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255,255,255,0.08); z-index: 100;
+            display: flex; justify-content: space-between; align-items: center;
+            pointer-events: none;
+        }
+        .header * { pointer-events: auto; }
+
+        .logo-wrapper { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        
+        /* Иконка в стиле логотипа Poly */
+        .poly-icon {
+            width: 32px; height: 32px; background: var(--poly-blue);
+            border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 15px var(--poly-blue-glow);
+        }
+        .poly-icon::after {
+            content: "P"; color: white; font-weight: 800; font-size: 20px;
+        }
+
+        .logo-brand { font-size: 20px; font-weight: 700; color: white; letter-spacing: -0.3px; }
+        .logo-sub { color: var(--poly-blue); font-weight: 800; }
+
+        .live-status {
+            background: rgba(0, 211, 149, 0.1); border: 1px solid rgba(0, 211, 149, 0.2);
+            padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 8px;
+        }
+        .dot { width: 6px; height: 6px; background: var(--poly-green); border-radius: 50%; box-shadow: 0 0 8px var(--poly-green); }
+        .status-text { font-size: 11px; font-weight: 600; color: var(--poly-green); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* SVG И ПУЗЫРИ */
+        svg { display: block; width: 100vw; height: 100vh; }
+        
+        .bubble-group { cursor: grab; }
+        .bubble-group:active { cursor: grabbing; }
+
+        .bubble-ui {
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; height: 100%; width: 100%; text-align: center;
+            padding: 10px; box-sizing: border-box; pointer-events: none; user-select: none;
+        }
+        .title { font-size: 10px; line-height: 1.2; font-weight: 400; opacity: 0.7; color: #fff; margin-bottom: 4px; }
+        .value { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .volume { font-size: 9px; font-weight: 600; opacity: 0.4; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo-wrapper">
+        <div class="poly-icon"></div>
+        <div class="logo-brand">Poly<span class="logo-sub">Bubbles</span></div>
+    </div>
+    
+    <div class="live-status">
+        <div class="dot"></div>
+        <span class="status-text" id="sync-info">Connecting...</span>
+    </div>
+</div>
+
+<script>
+    const width = window.innerWidth, height = window.innerHeight, topPadding = 100;
+    const svg = d3.select("body").append("svg").attr("width", width).attr("height", height);
+    const defs = svg.append("defs");
+
+    // ПРОФЕССИОНАЛЬНЫЕ ГРАДИЕНТЫ
+    const createGrad = (id, color) => {
+        const grad = defs.append("radialGradient").attr("id", id).attr("cx", "40%").attr("cy", "40%");
+        grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.3);
+        grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0.25);
+    };
+    createGrad("grad-green", "#00d395");
+    createGrad("grad-blue", "#2458f0"); // Заменили желтый на синий Poly
+    createGrad("grad-red", "#ff4a5a");
+
+    let nodes = [];
+
+    const simulation = d3.forceSimulation(nodes)
+        .force("charge", d3.forceManyBody().strength(-150))
+        .force("x", d3.forceX(width / 2).strength(0.01))
+        .force("y", d3.forceY((height + topPadding) / 2).strength(0.01))
+        .force("collide", d3.forceCollide(d => d.radius + 14).iterations(3))
+        .alphaTarget(0.2) 
+        .on("tick", () => {
+            nodes.forEach(d => {
+                d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
+                d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius, d.y));
+            });
+            svg.selectAll(".bubble-group").attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+    const drag = d3.drag()
+        .on("start", (event, d) => {
+            d.dragged = false;
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+            d.dragged = true;
+            d.fx = event.x; d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+            if (!event.active) simulation.alphaTarget(0.2);
+            d.fx = null; d.fy = null;
+            if (!d.dragged) window.open(d.link, "_blank");
+        });
+
+    async function updateData() {
+        try {
+            const response = await fetch('data.json?' + Date.now());
+            const newData = await response.json();
+            if (newData.length > 0) {
+                document.getElementById('sync-info').innerText = "Live: " + new Date().toLocaleTimeString();
+                render(newData);
+            }
+        } catch (e) {}
+    }
+
+    function render(newData) {
+        const totalVolume = d3.sum(newData, d => d.pnl);
+        const maxVol = d3.max(newData, d => d.pnl) || 1000;
+        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([40, 125]);
+        
+        const highThreshold = maxVol * 0.4;
+        const midThreshold = maxVol * 0.1;
+
+        newData.forEach(d => {
+            const share = ((d.pnl / totalVolume) * 100).toFixed(1) + "%";
+            let node = nodes.find(n => n.label === d.label);
+            if (node) {
+                node.pnl = d.pnl; node.radius = radiusScale(d.pnl); node.share = share;
+            } else {
+                nodes.push({
+                    ...d, radius: radiusScale(d.pnl), share: share,
+                    x: Math.random() * width, y: Math.random() * height
+                });
+            }
+        });
+
+        const bubbles = svg.selectAll(".bubble-group").data(nodes, d => d.label);
+        bubbles.exit().remove();
+
+        const gEnter = bubbles.enter().append("g").attr("class", "bubble-group").call(drag);
+        
+        // Внешнее свечение
+        gEnter.append("circle").attr("class", "glow").style("filter", "blur(20px)").attr("opacity", 0.4);
+        // Основной круг
+        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.1)");
+        
+        const foreign = gEnter.append("foreignObject").attr("class", "text-box").attr("pointer-events", "none");
+        const div = foreign.append("xhtml:div").attr("class", "bubble-ui");
+        div.append("div").attr("class", "title");
+        div.append("div").attr("class", "value");
+        div.append("div").attr("class", "volume");
+
+        const all = svg.selectAll(".bubble-group");
+        
+        all.select(".glow").attr("r", d => d.radius + 12)
+            .attr("fill", d => d.pnl >= highThreshold ? "#00d395" : (d.pnl >= midThreshold ? "#2458f0" : "#ff4a5a"));
+
+        all.select(".main-circle").attr("r", d => d.radius)
+            .attr("fill", d => d.pnl >= highThreshold ? "url(#grad-green)" : (d.pnl >= midThreshold ? "url(#grad-blue)" : "url(#grad-red)"));
+
+        all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
+        all.select(".title").text(d => d.label);
+        all.select(".value").text(d => d.share);
+        all.select(".volume").text(d => (d.pnl/1000).toFixed(0) + "K VOL");
+
+        simulation.nodes(nodes).restart();
+    }
+
+    updateData();
+    setInterval(updateData, 10000);
+</script>
+</body>
+</html>
