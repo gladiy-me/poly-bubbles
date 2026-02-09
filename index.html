@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>PolyBubbles: Pro Contrast</title>
+    <title>PolyBubbles: Pro Packing</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -28,7 +28,6 @@
             display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px var(--poly-blue-glow);
         }
         .poly-icon::after { content: "P"; color: white; font-weight: 800; font-size: 20px; }
-        
         .timeframes { display: flex; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; }
         .tf-btn {
             background: transparent; border: none; color: rgba(255,255,255,0.4);
@@ -36,23 +35,19 @@
             font-weight: 800; transition: all 0.2s;
         }
         .tf-btn.active { background: var(--poly-blue); color: white; box-shadow: 0 0 10px var(--poly-blue-glow); }
-
         .live-status {
             background: rgba(0, 211, 149, 0.1); border: 1px solid rgba(0, 211, 149, 0.2);
             padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 8px;
         }
         .dot { width: 6px; height: 6px; background: var(--poly-green); border-radius: 50%; box-shadow: 0 0 8px var(--poly-green); }
         .status-text { font-size: 10px; font-weight: 600; color: var(--poly-green); text-transform: uppercase; }
-        
         svg { display: block; width: 100vw; height: 100vh; }
         @keyframes pulse-leader { 0% { opacity: 0.4; } 50% { opacity: 0.9; } 100% { opacity: 0.4; } }
         .leader-glow { animation: pulse-leader 2s infinite ease-in-out; }
         .bubble-ui { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; pointer-events: none; width: 100%; height: 100%; }
-        
-        /* Стили текста теперь гибкие */
-        .title { font-weight: 400; color: #fff; margin-bottom: 2px; padding: 0 5px; box-sizing: border-box; }
+        .title { font-weight: 400; color: #fff; margin-bottom: 2px; padding: 0 4px; }
         .value { font-weight: 800; color: #fff; line-height: 1; }
-        .volume { font-weight: 600; opacity: 0.5; margin-top: 2px; }
+        .volume { font-weight: 600; opacity: 0.5; margin-top: 1px; }
     </style>
 </head>
 <body>
@@ -83,14 +78,14 @@
     createGrad("grad-green", "#00d395"); createGrad("grad-blue", "#2458f0"); createGrad("grad-red", "#ff4a5a");
 
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(15))
+        .force("charge", d3.forceManyBody().strength(5))
         .force("x", d3.forceX(width / 2).strength(0.015))
         .force("y", d3.forceY((height + topPadding) / 2).strength(0.015))
-        .force("collide", d3.forceCollide().radius(d => d.radius + 6).iterations(20))
-        .alphaTarget(0.2)
+        .force("collide", d3.forceCollide().radius(d => d.radius + 12).iterations(15)) // Увеличен зазор
+        .alphaTarget(0.15)
         .on("tick", () => {
             nodes.forEach(d => {
-                d.vx += (Math.random() - 0.5) * 0.25; d.vy += (Math.random() - 0.5) * 0.25;
+                d.vx += (Math.random() - 0.5) * 0.15; d.vy += (Math.random() - 0.5) * 0.15;
                 d.x = Math.max(d.radius + 20, Math.min(width - d.radius - 20, d.x));
                 d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius - 20, d.y));
             });
@@ -105,17 +100,20 @@
     }
 
     function render(newData) {
-        // Сортируем по объему, чтобы лидеры были в начале массива
-        const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, 45);
+        // УМНАЯ ЛОГИКА: Ограничиваем количество шаров на основе площади экрана
+        const screenArea = width * (height - topPadding);
+        const maxBubbles = Math.floor(screenArea / 18000); // 1 шар на каждые 18000 пикселей для "воздуха"
+        
+        const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, Math.min(maxBubbles, 40));
         const totalVolume = d3.sum(filteredData, d => d.pnl);
         const maxVol = d3.max(filteredData, d => d.pnl) || 1000;
         const avgVol = d3.mean(filteredData, d => d.pnl) || 500;
 
-        // НОВАЯ ЛОГИКА КОНТРАСТА: от 12 до 90 пикселей
+        // Контрастное масштабирование: шары стали меньше в среднем
         const radiusScale = d3.scalePow()
-            .exponent(0.5)
+            .exponent(0.6)
             .domain([0, maxVol])
-            .range([12, 90]);
+            .range([10, 75]); // Уменьшен максимальный порог до 75
 
         const activeLabels = filteredData.map(d => d.label);
         nodes = nodes.filter(n => activeLabels.includes(n.label));
@@ -125,7 +123,7 @@
             const r = radiusScale(d.pnl);
             const s = ((d.pnl / totalVolume) * 100).toFixed(1) + "%";
             if (node) { node.pnl = d.pnl; node.radius = r; node.share = s; }
-            else { nodes.push({ ...d, radius: r, x: width/2, y: height/2, share: s }); }
+            else { nodes.push({ ...d, radius: r, x: Math.random()*width, y: Math.random()*height, share: s }); }
         });
 
         const maxVolValue = d3.max(nodes, d => d.pnl);
@@ -143,7 +141,7 @@
                 })
             );
 
-        gEnter.append("circle").attr("class", "glow").style("filter", "blur(15px)");
+        gEnter.append("circle").attr("class", "glow").style("filter", "blur(12px)");
         gEnter.append("circle").attr("class", "main-circle");
         const foreign = gEnter.append("foreignObject").attr("class", "text-box");
         const div = foreign.append("xhtml:div").attr("class", "bubble-ui");
@@ -152,9 +150,9 @@
         div.append("div").attr("class", "volume");
 
         const all = svg.selectAll(".bubble-group");
-        const hT = avgVol * 1.1, mT = avgVol * 0.9;
+        const hT = avgVol * 1.15, mT = avgVol * 0.85;
 
-        all.select(".glow").attr("r", d => d.pnl === maxVolValue ? d.radius + 18 : d.radius + 8)
+        all.select(".glow").attr("r", d => d.pnl === maxVolValue ? d.radius + 15 : d.radius + 6)
             .attr("fill", d => d.pnl >= hT ? "#00d395" : (d.pnl >= mT ? "#2458f0" : "#ff4a5a"))
             .classed("leader-glow", d => d.pnl === maxVolValue);
 
@@ -164,18 +162,17 @@
 
         all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
         
-        // ДИНАМИЧЕСКИЙ ТЕКСТ (скрываем лишнее на маленьких шарах)
         all.select(".title")
-            .style("font-size", d => Math.max(7, d.radius * 0.22) + "px")
-            .text(d => d.radius < 28 ? "" : (d.label.length > 20 ? d.label.slice(0, 18) + '..' : d.label));
+            .style("font-size", d => Math.max(6, d.radius * 0.23) + "px")
+            .text(d => d.radius < 26 ? "" : (d.label.length > 18 ? d.label.slice(0, 16) + '..' : d.label));
 
         all.select(".value")
-            .style("font-size", d => Math.max(9, d.radius * 0.42) + "px")
+            .style("font-size", d => Math.max(8, d.radius * 0.45) + "px")
             .text(d => d.share);
 
         all.select(".volume")
-            .style("display", d => d.radius < 38 ? "none" : "block")
-            .style("font-size", d => Math.max(6, d.radius * 0.18) + "px")
+            .style("display", d => d.radius < 35 ? "none" : "block")
+            .style("font-size", d => Math.max(5, d.radius * 0.18) + "px")
             .text(d => (d.pnl/1000).toFixed(0) + "K VOL");
 
         simulation.nodes(nodes).alpha(1).restart();
