@@ -38,9 +38,7 @@
             border-radius: 8px; display: flex; align-items: center; justify-content: center;
             box-shadow: 0 0 15px var(--poly-blue-glow);
         }
-        .poly-icon::after {
-            content: "P"; color: white; font-weight: 800; font-size: 20px;
-        }
+        .poly-icon::after { content: "P"; color: white; font-weight: 800; font-size: 20px; }
 
         .logo-brand { font-size: 20px; font-weight: 700; color: white; letter-spacing: -0.3px; }
         .logo-sub { color: var(--poly-blue); font-weight: 800; }
@@ -63,8 +61,8 @@
             padding: 10px; box-sizing: border-box; pointer-events: none; user-select: none;
         }
         .title { font-size: 10px; line-height: 1.2; font-weight: 400; opacity: 0.8; color: #fff; margin-bottom: 4px; }
-        .value { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
-        .volume { font-size: 9px; font-weight: 600; opacity: 0.5; margin-top: 4px; }
+        .value { font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .volume { font-size: 9px; font-weight: 600; opacity: 0.6; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -88,7 +86,7 @@
 
     const createGrad = (id, color) => {
         const grad = defs.append("radialGradient").attr("id", id).attr("cx", "40%").attr("cy", "40%");
-        grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.35);
+        grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.4);
         grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0.3);
     };
     createGrad("grad-green", "#00d395");
@@ -97,14 +95,12 @@
 
     let nodes = [];
 
+    // Физика симуляции: расталкивание и границы
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(10)) 
+        .force("charge", d3.forceManyBody().strength(15)) 
         .force("x", d3.forceX(width / 2).strength(0.02))
         .force("y", d3.forceY((height + topPadding) / 2).strength(0.02))
-        .force("collide", d3.forceCollide()
-            .radius(d => d.radius + 4) 
-            .iterations(10) 
-        )
+        .force("collide", d3.forceCollide().radius(d => d.radius + 6).iterations(15)) 
         .alphaTarget(0.05) 
         .on("tick", () => {
             nodes.forEach(d => {
@@ -116,7 +112,7 @@
 
     const drag = d3.drag()
         .on("start", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.2).restart();
+            if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x; d.fy = d.y;
             d.dragged = false;
         })
@@ -138,9 +134,7 @@
                 document.getElementById('sync-info').innerText = "Live: " + new Date().toLocaleTimeString();
                 render(newData);
             }
-        } catch (e) {
-            console.error("Fetch error:", e);
-        }
+        } catch (e) { console.error("Fetch error:", e); }
     }
 
     function render(newData) {
@@ -148,22 +142,18 @@
         const maxVol = d3.max(newData, d => d.pnl) || 1000;
         const avgVol = d3.mean(newData, d => d.pnl) || 500;
         
-        // Масштабирование радиуса: уменьшили макс. размер для компактности
-        const radiusScale = d3.scaleSqrt()
-            .domain([0, maxVol])
-            .range([32, 92]); 
+        // Ограничиваем радиус (30-85), чтобы пузыри не накладывались
+        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([30, 85]); 
         
-        // Динамические пороги цвета (зависят от среднего объема выборки)
-        const highThreshold = avgVol * 1.6;
-        const midThreshold = avgVol * 0.6;
+        // Настройка порогов цвета для сочной картинки
+        const highThreshold = avgVol * 1.15; 
+        const midThreshold = avgVol * 0.85;  
 
         newData.forEach(d => {
             const share = totalVolume > 0 ? ((d.pnl / totalVolume) * 100).toFixed(1) + "%" : "0%";
             let node = nodes.find(n => n.label === d.label);
             if (node) {
-                node.pnl = d.pnl; 
-                node.radius = radiusScale(d.pnl); 
-                node.share = share;
+                node.pnl = d.pnl; node.radius = radiusScale(d.pnl); node.share = share;
             } else {
                 nodes.push({
                     ...d, radius: radiusScale(d.pnl), share: share,
@@ -186,22 +176,19 @@
         div.append("div").attr("class", "volume");
 
         const all = svg.selectAll(".bubble-group");
-        
         all.select(".glow").attr("r", d => d.radius + 14)
             .attr("fill", d => d.pnl >= highThreshold ? "#00d395" : (d.pnl >= midThreshold ? "#2458f0" : "#ff4a5a"));
-            
         all.select(".main-circle").attr("r", d => d.radius)
             .attr("fill", d => d.pnl >= highThreshold ? "url(#grad-green)" : (d.pnl >= midThreshold ? "url(#grad-blue)" : "url(#grad-red)"));
-            
-        all.select(".text-box")
-            .attr("x", d => -d.radius).attr("y", d => -d.radius)
-            .attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
-            
+        all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
         all.select(".title").text(d => d.label);
         all.select(".value").text(d => d.share);
         all.select(".volume").text(d => (d.pnl/1000).toFixed(1) + "K VOL");
 
-        simulation.nodes(nodes).alpha(0.2).restart();
+        // Обновляем физику при каждом рендере
+        simulation.nodes(nodes);
+        simulation.force("collide").radius(d => d.radius + 6).iterations(15);
+        simulation.alpha(1).restart(); 
     }
 
     updateData();
