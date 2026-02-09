@@ -97,14 +97,19 @@
 
     let nodes = [];
 
+    // ИСПРАВЛЕННАЯ СИМУЛЯЦИЯ (БЕЗ НАЛОЖЕНИЙ)
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(-150))
-        .force("x", d3.forceX(width / 2).strength(0.01))
-        .force("y", d3.forceY((height + topPadding) / 2).strength(0.01))
-        .force("collide", d3.forceCollide(d => d.radius + 14).iterations(3))
-        .alphaTarget(0.2) 
+        .force("charge", d3.forceManyBody().strength(5)) // Небольшое расталкивание
+        .force("x", d3.forceX(width / 2).strength(0.015))
+        .force("y", d3.forceY((height + topPadding) / 2).strength(0.015))
+        .force("collide", d3.forceCollide()
+            .radius(d => d.radius + 3) // Добавляем зазор между пузырями
+            .iterations(10) // Повышаем точность расчета столкновений
+        )
+        .alphaTarget(0.1) 
         .on("tick", () => {
             nodes.forEach(d => {
+                // Строгое ограничение в границах экрана
                 d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
                 d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius, d.y));
             });
@@ -122,14 +127,13 @@
             d.fx = event.x; d.fy = event.y;
         })
         .on("end", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.2);
+            if (!event.active) simulation.alphaTarget(0.1);
             d.fx = null; d.fy = null;
             if (!d.dragged) window.open(d.link, "_blank");
         });
 
     async function updateData() {
         try {
-            // МЕНЯЕМ НА /API ДЛЯ VERCEL
             const response = await fetch('/api'); 
             const newData = await response.json();
             if (newData.length > 0) {
@@ -144,7 +148,9 @@
     function render(newData) {
         const totalVolume = d3.sum(newData, d => d.pnl);
         const maxVol = d3.max(newData, d => d.pnl) || 1000;
-        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([40, 125]);
+        
+        // Масштаб радиуса: уменьшили максимальный размер, чтобы всем хватило места
+        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([35, 110]);
         
         const highThreshold = maxVol * 0.4;
         const midThreshold = maxVol * 0.1;
@@ -185,11 +191,11 @@
         all.select(".value").text(d => d.share);
         all.select(".volume").text(d => (d.pnl/1000).toFixed(0) + "K VOL");
 
-        simulation.nodes(nodes).restart();
+        simulation.nodes(nodes).alpha(0.3).restart();
     }
 
     updateData();
-    setInterval(updateData, 10000);
+    setInterval(updateData, 15000); // Увеличили интервал до 15 сек для стабильности
 </script>
 </body>
 </html>
