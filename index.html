@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>PolyBubbles: Live Motion</title>
+    <title>PolyBubbles: Airy Motion</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -42,9 +42,9 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             height: 100%; width: 100%; text-align: center; padding: 5px; box-sizing: border-box; pointer-events: none;
         }
-        .title { font-size: 9px; font-weight: 400; opacity: 0.8; color: #fff; margin-bottom: 2px; }
-        .value { font-size: 18px; font-weight: 800; color: #fff; }
-        .volume { font-size: 8px; font-weight: 600; opacity: 0.5; }
+        .title { font-size: 8px; line-height: 1.1; font-weight: 400; opacity: 0.7; color: #fff; margin-bottom: 2px; }
+        .value { font-size: 16px; font-weight: 800; color: #fff; }
+        .volume { font-size: 7px; font-weight: 600; opacity: 0.5; }
     </style>
 </head>
 <body>
@@ -69,36 +69,33 @@
     createGrad("grad-green", "#00d395"); createGrad("grad-blue", "#2458f0"); createGrad("grad-red", "#ff4a5a");
 
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(15))
-        .force("x", d3.forceX(width / 2).strength(0.01))
-        .force("y", d3.forceY((height + topPadding) / 2).strength(0.01))
-        .force("collide", d3.forceCollide().radius(d => d.radius + 8).iterations(20))
-        .alphaTarget(0.1) // Постоянная активность
+        .force("charge", d3.forceManyBody().strength(10)) // Слабое расталкивание для "воздуха"
+        .force("x", d3.forceX(width / 2).strength(0.008)) // Очень слабое притяжение к центру
+        .force("y", d3.forceY((height + topPadding) / 2).strength(0.008))
+        .force("collide", d3.forceCollide().radius(d => d.radius + 15).iterations(10)) // Большой зазор
+        .alphaTarget(0.2) // Высокая активность для постоянного движения
         .on("tick", () => {
             nodes.forEach(d => {
-                // ДОБАВЛЯЕМ РАНДОМНОЕ ДВИЖЕНИЕ (хаос)
-                d.vx += (Math.random() - 0.5) * 0.15;
-                d.vy += (Math.random() - 0.5) * 0.15;
-                
-                // Границы
-                d.x = Math.max(d.radius + 10, Math.min(width - d.radius - 10, d.x));
-                d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius - 10, d.y));
+                // ПЛАВАЮЩЕЕ ДВИЖЕНИЕ
+                d.vx += (Math.random() - 0.5) * 0.25;
+                d.vy += (Math.random() - 0.5) * 0.25;
+
+                // Границы экрана
+                d.x = Math.max(d.radius + 20, Math.min(width - d.radius - 20, d.x));
+                d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius - 20, d.y));
             });
             svg.selectAll(".bubble-group").attr("transform", d => `translate(${d.x},${d.y})`);
         });
 
     function render(newData) {
-        const screenArea = width * (height - topPadding);
-        const maxTotalRadius = Math.sqrt(screenArea / 12);
-        
-        const filteredData = newData
-            .sort((a, b) => b.pnl - a.pnl)
-            .filter((d, i) => i < 35); // Оставляем 35 лучших для свободного полета
-
+        // Оставляем 40 шаров, но делаем их МЕНЬШЕ
+        const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, 40);
         const totalVolume = d3.sum(filteredData, d => d.pnl);
         const maxVol = d3.max(filteredData, d => d.pnl) || 1000;
         const avgVol = d3.mean(filteredData, d => d.pnl) || 500;
-        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([30, 80]);
+
+        // НОВЫЙ МАСШТАБ: от 20 до 65 пикселей (было 30-85)
+        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([20, 65]);
 
         nodes = filteredData.map(d => {
             let existing = nodes.find(n => n.label === d.label);
@@ -117,22 +114,21 @@
         const gEnter = bubbles.enter().append("g").attr("class", "bubble-group")
             .call(d3.drag()
                 .on("start", (e, d) => {
-                    d.startX = e.x; d.startY = e.y; // Точка начала
-                    if (!e.active) simulation.alphaTarget(0.3).restart();
+                    d.startX = e.x; d.startY = e.y;
+                    if (!e.active) simulation.alphaTarget(0.4).restart();
                     d.fx = d.x; d.fy = d.y;
                 })
                 .on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; })
                 .on("end", (e, d) => {
-                    if (!e.active) simulation.alphaTarget(0.1);
+                    if (!e.active) simulation.alphaTarget(0.2);
                     d.fx = null; d.fy = null;
-                    // ПРОВЕРКА: Если сдвинул меньше чем на 5 пикселей — это клик
                     const dist = Math.sqrt(Math.pow(e.x - d.startX, 2) + Math.pow(e.y - d.startY, 2));
-                    if (dist < 5) window.open(d.link, "_blank");
+                    if (dist < 6) window.open(d.link, "_blank");
                 })
             );
 
-        gEnter.append("circle").attr("class", "glow").style("filter", "blur(20px)").attr("opacity", 0.4);
-        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.1)");
+        gEnter.append("circle").attr("class", "glow").style("filter", "blur(15px)").attr("opacity", 0.3);
+        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.08)");
         
         const foreign = gEnter.append("foreignObject").attr("class", "text-box");
         const div = foreign.append("xhtml:div").attr("class", "bubble-ui");
@@ -141,16 +137,16 @@
         div.append("div").attr("class", "volume");
 
         const all = svg.selectAll(".bubble-group");
-        const hT = avgVol * 1.15, mT = avgVol * 0.85;
+        const hT = avgVol * 1.1, mT = avgVol * 0.9;
 
-        all.select(".glow").attr("r", d => d.radius + 10)
+        all.select(".glow").attr("r", d => d.radius + 8)
             .attr("fill", d => d.pnl >= hT ? "#00d395" : (d.pnl >= mT ? "#2458f0" : "#ff4a5a"));
         all.select(".main-circle").attr("r", d => d.radius)
             .attr("fill", d => d.pnl >= hT ? "url(#grad-green)" : (d.pnl >= mT ? "url(#grad-blue)" : "url(#grad-red)"));
         all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
-        all.select(".title").text(d => d.label.length > 30 ? d.label.slice(0, 30) + '...' : d.label);
+        all.select(".title").text(d => d.label.length > 25 ? d.label.slice(0, 22) + '..' : d.label);
         all.select(".value").text(d => d.share);
-        all.select(".volume").text(d => (d.pnl/1000).toFixed(1) + "K VOL");
+        all.select(".volume").text(d => (d.pnl/1000).toFixed(1) + "K");
 
         simulation.nodes(nodes);
         simulation.alpha(1).restart();
