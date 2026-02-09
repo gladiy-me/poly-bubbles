@@ -9,7 +9,7 @@
 
         :root { 
             --poly-bg: #030816; 
-            --poly-blue: #2458f0; /* Фирменный синий */
+            --poly-blue: #2458f0; 
             --poly-blue-glow: rgba(36, 88, 240, 0.4);
             --poly-green: #00d395;
             --poly-red: #ff4a5a;
@@ -22,7 +22,6 @@
             overflow: hidden; font-family: 'Inter', sans-serif; color: var(--poly-text);
         }
         
-        /* HEADER В СТИЛЕ POLYMARKET */
         .header {
             position: absolute; top: 0; left: 0; right: 0; padding: 14px 24px;
             background: rgba(3, 8, 22, 0.8); backdrop-filter: blur(20px);
@@ -34,7 +33,6 @@
 
         .logo-wrapper { display: flex; align-items: center; gap: 10px; text-decoration: none; }
         
-        /* Иконка в стиле логотипа Poly */
         .poly-icon {
             width: 32px; height: 32px; background: var(--poly-blue);
             border-radius: 8px; display: flex; align-items: center; justify-content: center;
@@ -54,7 +52,6 @@
         .dot { width: 6px; height: 6px; background: var(--poly-green); border-radius: 50%; box-shadow: 0 0 8px var(--poly-green); }
         .status-text { font-size: 11px; font-weight: 600; color: var(--poly-green); text-transform: uppercase; letter-spacing: 0.5px; }
 
-        /* SVG И ПУЗЫРИ */
         svg { display: block; width: 100vw; height: 100vh; }
         
         .bubble-group { cursor: grab; }
@@ -89,14 +86,13 @@
     const svg = d3.select("body").append("svg").attr("width", width).attr("height", height);
     const defs = svg.append("defs");
 
-    // ПРОФЕССИОНАЛЬНЫЕ ГРАДИЕНТЫ
     const createGrad = (id, color) => {
         const grad = defs.append("radialGradient").attr("id", id).attr("cx", "40%").attr("cy", "40%");
         grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.3);
         grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0.25);
     };
     createGrad("grad-green", "#00d395");
-    createGrad("grad-blue", "#2458f0"); // Заменили желтый на синий Poly
+    createGrad("grad-blue", "#2458f0");
     createGrad("grad-red", "#ff4a5a");
 
     let nodes = [];
@@ -133,13 +129,16 @@
 
     async function updateData() {
         try {
-            const response = await fetch('data.json?' + Date.now());
+            // МЕНЯЕМ НА /API ДЛЯ VERCEL
+            const response = await fetch('/api'); 
             const newData = await response.json();
             if (newData.length > 0) {
                 document.getElementById('sync-info').innerText = "Live: " + new Date().toLocaleTimeString();
                 render(newData);
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error("Fetch error:", e);
+        }
     }
 
     function render(newData) {
@@ -167,10 +166,7 @@
         bubbles.exit().remove();
 
         const gEnter = bubbles.enter().append("g").attr("class", "bubble-group").call(drag);
-        
-        // Внешнее свечение
         gEnter.append("circle").attr("class", "glow").style("filter", "blur(20px)").attr("opacity", 0.4);
-        // Основной круг
         gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.1)");
         
         const foreign = gEnter.append("foreignObject").attr("class", "text-box").attr("pointer-events", "none");
@@ -180,13 +176,10 @@
         div.append("div").attr("class", "volume");
 
         const all = svg.selectAll(".bubble-group");
-        
         all.select(".glow").attr("r", d => d.radius + 12)
             .attr("fill", d => d.pnl >= highThreshold ? "#00d395" : (d.pnl >= midThreshold ? "#2458f0" : "#ff4a5a"));
-
         all.select(".main-circle").attr("r", d => d.radius)
             .attr("fill", d => d.pnl >= highThreshold ? "url(#grad-green)" : (d.pnl >= midThreshold ? "url(#grad-blue)" : "url(#grad-red)"));
-
         all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
         all.select(".title").text(d => d.label);
         all.select(".value").text(d => d.share);
