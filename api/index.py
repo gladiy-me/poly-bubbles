@@ -1,23 +1,20 @@
 from http.server import BaseHTTPRequestHandler
 import cloudscraper
 import json
-import logging
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        scraper = cloudscraper.create_scraper()
-        url = "https://gamma-api.polymarket.com/events?limit=50&active=true&order=volume24hr&dir=desc"
+        # 1. Сразу отправляем заголовки, чтобы браузер понимал: это JSON-текст
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
         
         try:
-            # Запрос к API Polymarket
-            response = scraper.get(url, timeout=15)
+            scraper = cloudscraper.create_scraper()
+            url = "https://gamma-api.polymarket.com/events?limit=50&active=true&order=volume24hr&dir=desc"
             
-            if response.status_code != 200:
-                self.send_response(response.status_code)
-                self.end_headers()
-                self.wfile.write(f"Polymarket API Error: {response.status_code}".encode())
-                return
-
+            response = scraper.get(url, timeout=10)
             events = response.json()
             bubbles = []
             
@@ -30,14 +27,11 @@ class handler(BaseHTTPRequestHandler):
                         "pnl": float(v_raw),
                         "link": f"https://polymarket.com/event/{slug}"
                     })
-
-            # Успешная отправка данных
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+            
+            # 2. Отправляем сами данные
             self.wfile.write(json.dumps(bubbles).encode('utf-8'))
-
+            
         except Exception as e:
-            # Логируем ошибку для Vercel Dashboard
-            logging.error(f"
+            # Если ошибка — отправляем её текстом, а не крашим сервер
+            error_data = [{"label": "Error", "pnl": 1000, "link": "#", "error": str(e)}]
+            self.wfile.write(json.dumps(error_data).encode('utf-8'))
