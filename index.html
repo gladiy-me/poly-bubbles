@@ -62,9 +62,9 @@
             align-items: center; height: 100%; width: 100%; text-align: center;
             padding: 10px; box-sizing: border-box; pointer-events: none; user-select: none;
         }
-        .title { font-size: 10px; line-height: 1.2; font-weight: 400; opacity: 0.7; color: #fff; margin-bottom: 4px; }
+        .title { font-size: 10px; line-height: 1.2; font-weight: 400; opacity: 0.8; color: #fff; margin-bottom: 4px; }
         .value { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
-        .volume { font-size: 9px; font-weight: 600; opacity: 0.4; margin-top: 4px; }
+        .volume { font-size: 9px; font-weight: 600; opacity: 0.5; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -82,14 +82,14 @@
 </div>
 
 <script>
-    const width = window.innerWidth, height = window.innerHeight, topPadding = 100;
+    const width = window.innerWidth, height = window.innerHeight, topPadding = 120;
     const svg = d3.select("body").append("svg").attr("width", width).attr("height", height);
     const defs = svg.append("defs");
 
     const createGrad = (id, color) => {
         const grad = defs.append("radialGradient").attr("id", id).attr("cx", "40%").attr("cy", "40%");
-        grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.3);
-        grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0.25);
+        grad.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff").attr("stop-opacity", 0.35);
+        grad.append("stop").attr("offset", "100%").attr("stop-color", color).attr("stop-opacity", 0.3);
     };
     createGrad("grad-green", "#00d395");
     createGrad("grad-blue", "#2458f0");
@@ -97,19 +97,17 @@
 
     let nodes = [];
 
-    // ИСПРАВЛЕННАЯ СИМУЛЯЦИЯ (БЕЗ НАЛОЖЕНИЙ)
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(5)) // Небольшое расталкивание
-        .force("x", d3.forceX(width / 2).strength(0.015))
-        .force("y", d3.forceY((height + topPadding) / 2).strength(0.015))
+        .force("charge", d3.forceManyBody().strength(10)) 
+        .force("x", d3.forceX(width / 2).strength(0.02))
+        .force("y", d3.forceY((height + topPadding) / 2).strength(0.02))
         .force("collide", d3.forceCollide()
-            .radius(d => d.radius + 3) // Добавляем зазор между пузырями
-            .iterations(10) // Повышаем точность расчета столкновений
+            .radius(d => d.radius + 4) 
+            .iterations(10) 
         )
-        .alphaTarget(0.1) 
+        .alphaTarget(0.05) 
         .on("tick", () => {
             nodes.forEach(d => {
-                // Строгое ограничение в границах экрана
                 d.x = Math.max(d.radius, Math.min(width - d.radius, d.x));
                 d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius, d.y));
             });
@@ -118,16 +116,16 @@
 
     const drag = d3.drag()
         .on("start", (event, d) => {
-            d.dragged = false;
-            if (!event.active) simulation.alphaTarget(0.3).restart();
+            if (!event.active) simulation.alphaTarget(0.2).restart();
             d.fx = d.x; d.fy = d.y;
+            d.dragged = false;
         })
         .on("drag", (event, d) => {
-            d.dragged = true;
             d.fx = event.x; d.fy = event.y;
+            d.dragged = true;
         })
         .on("end", (event, d) => {
-            if (!event.active) simulation.alphaTarget(0.1);
+            if (!event.active) simulation.alphaTarget(0.05);
             d.fx = null; d.fy = null;
             if (!d.dragged) window.open(d.link, "_blank");
         });
@@ -136,7 +134,7 @@
         try {
             const response = await fetch('/api'); 
             const newData = await response.json();
-            if (newData.length > 0) {
+            if (newData && newData.length > 0) {
                 document.getElementById('sync-info').innerText = "Live: " + new Date().toLocaleTimeString();
                 render(newData);
             }
@@ -148,18 +146,24 @@
     function render(newData) {
         const totalVolume = d3.sum(newData, d => d.pnl);
         const maxVol = d3.max(newData, d => d.pnl) || 1000;
+        const avgVol = d3.mean(newData, d => d.pnl) || 500;
         
-        // Масштаб радиуса: уменьшили максимальный размер, чтобы всем хватило места
-        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([35, 110]);
+        // Масштабирование радиуса: уменьшили макс. размер для компактности
+        const radiusScale = d3.scaleSqrt()
+            .domain([0, maxVol])
+            .range([32, 92]); 
         
-        const highThreshold = maxVol * 0.4;
-        const midThreshold = maxVol * 0.1;
+        // Динамические пороги цвета (зависят от среднего объема выборки)
+        const highThreshold = avgVol * 1.6;
+        const midThreshold = avgVol * 0.6;
 
         newData.forEach(d => {
-            const share = ((d.pnl / totalVolume) * 100).toFixed(1) + "%";
+            const share = totalVolume > 0 ? ((d.pnl / totalVolume) * 100).toFixed(1) + "%" : "0%";
             let node = nodes.find(n => n.label === d.label);
             if (node) {
-                node.pnl = d.pnl; node.radius = radiusScale(d.pnl); node.share = share;
+                node.pnl = d.pnl; 
+                node.radius = radiusScale(d.pnl); 
+                node.share = share;
             } else {
                 nodes.push({
                     ...d, radius: radiusScale(d.pnl), share: share,
@@ -172,8 +176,8 @@
         bubbles.exit().remove();
 
         const gEnter = bubbles.enter().append("g").attr("class", "bubble-group").call(drag);
-        gEnter.append("circle").attr("class", "glow").style("filter", "blur(20px)").attr("opacity", 0.4);
-        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.1)");
+        gEnter.append("circle").attr("class", "glow").style("filter", "blur(20px)").attr("opacity", 0.45);
+        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.15)");
         
         const foreign = gEnter.append("foreignObject").attr("class", "text-box").attr("pointer-events", "none");
         const div = foreign.append("xhtml:div").attr("class", "bubble-ui");
@@ -182,20 +186,26 @@
         div.append("div").attr("class", "volume");
 
         const all = svg.selectAll(".bubble-group");
-        all.select(".glow").attr("r", d => d.radius + 12)
+        
+        all.select(".glow").attr("r", d => d.radius + 14)
             .attr("fill", d => d.pnl >= highThreshold ? "#00d395" : (d.pnl >= midThreshold ? "#2458f0" : "#ff4a5a"));
+            
         all.select(".main-circle").attr("r", d => d.radius)
             .attr("fill", d => d.pnl >= highThreshold ? "url(#grad-green)" : (d.pnl >= midThreshold ? "url(#grad-blue)" : "url(#grad-red)"));
-        all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
+            
+        all.select(".text-box")
+            .attr("x", d => -d.radius).attr("y", d => -d.radius)
+            .attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
+            
         all.select(".title").text(d => d.label);
         all.select(".value").text(d => d.share);
-        all.select(".volume").text(d => (d.pnl/1000).toFixed(0) + "K VOL");
+        all.select(".volume").text(d => (d.pnl/1000).toFixed(1) + "K VOL");
 
-        simulation.nodes(nodes).alpha(0.3).restart();
+        simulation.nodes(nodes).alpha(0.2).restart();
     }
 
     updateData();
-    setInterval(updateData, 15000); // Увеличили интервал до 15 сек для стабильности
+    setInterval(updateData, 12000); 
 </script>
 </body>
 </html>
