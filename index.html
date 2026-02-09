@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>PolyBubbles: Airy Motion</title>
+    <title>PolyBubbles: Pro Analytics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -37,6 +37,15 @@
         .dot { width: 6px; height: 6px; background: var(--poly-green); border-radius: 50%; box-shadow: 0 0 8px var(--poly-green); }
         .status-text { font-size: 11px; font-weight: 600; color: var(--poly-green); text-transform: uppercase; }
         svg { display: block; width: 100vw; height: 100vh; }
+        
+        /* Анимация пульсации для лидера */
+        @keyframes pulse-leader {
+            0% { filter: blur(15px); opacity: 0.4; }
+            50% { filter: blur(25px); opacity: 0.9; }
+            100% { filter: blur(15px); opacity: 0.4; }
+        }
+        .leader-glow { animation: pulse-leader 2s infinite ease-in-out; }
+
         .bubble-group { cursor: grab; }
         .bubble-ui {
             display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -69,18 +78,16 @@
     createGrad("grad-green", "#00d395"); createGrad("grad-blue", "#2458f0"); createGrad("grad-red", "#ff4a5a");
 
     const simulation = d3.forceSimulation(nodes)
-        .force("charge", d3.forceManyBody().strength(10)) // Слабое расталкивание для "воздуха"
-        .force("x", d3.forceX(width / 2).strength(0.008)) // Очень слабое притяжение к центру
+        .force("charge", d3.forceManyBody().strength(12))
+        .force("x", d3.forceX(width / 2).strength(0.008))
         .force("y", d3.forceY((height + topPadding) / 2).strength(0.008))
-        .force("collide", d3.forceCollide().radius(d => d.radius + 15).iterations(10)) // Большой зазор
-        .alphaTarget(0.2) // Высокая активность для постоянного движения
+        .force("collide", d3.forceCollide().radius(d => d.radius + 15).iterations(10))
+        .alphaTarget(0.2) 
         .on("tick", () => {
             nodes.forEach(d => {
                 // ПЛАВАЮЩЕЕ ДВИЖЕНИЕ
                 d.vx += (Math.random() - 0.5) * 0.25;
                 d.vy += (Math.random() - 0.5) * 0.25;
-
-                // Границы экрана
                 d.x = Math.max(d.radius + 20, Math.min(width - d.radius - 20, d.x));
                 d.y = Math.max(d.radius + topPadding, Math.min(height - d.radius - 20, d.y));
             });
@@ -88,14 +95,14 @@
         });
 
     function render(newData) {
-        // Оставляем 40 шаров, но делаем их МЕНЬШЕ
-        const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, 40);
+        // Ограничиваем количество для "воздуха"
+        const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, 35);
         const totalVolume = d3.sum(filteredData, d => d.pnl);
         const maxVol = d3.max(filteredData, d => d.pnl) || 1000;
         const avgVol = d3.mean(filteredData, d => d.pnl) || 500;
 
-        // НОВЫЙ МАСШТАБ: от 20 до 65 пикселей (было 30-85)
-        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([20, 65]);
+        // Компактные размеры
+        const radiusScale = d3.scaleSqrt().domain([0, maxVol]).range([22, 68]);
 
         nodes = filteredData.map(d => {
             let existing = nodes.find(n => n.label === d.label);
@@ -107,6 +114,8 @@
             }
             return { ...d, radius: r, x: Math.random()*width, y: Math.random()*height, share: ((d.pnl / totalVolume) * 100).toFixed(1) + "%" };
         });
+
+        const maxVolValue = d3.max(nodes, d => d.pnl);
 
         const bubbles = svg.selectAll(".bubble-group").data(nodes, d => d.label);
         bubbles.exit().remove();
@@ -127,8 +136,8 @@
                 })
             );
 
-        gEnter.append("circle").attr("class", "glow").style("filter", "blur(15px)").attr("opacity", 0.3);
-        gEnter.append("circle").attr("class", "main-circle").attr("stroke", "rgba(255,255,255,0.08)");
+        gEnter.append("circle").attr("class", "glow").style("filter", "blur(15px)");
+        gEnter.append("circle").attr("class", "main-circle");
         
         const foreign = gEnter.append("foreignObject").attr("class", "text-box");
         const div = foreign.append("xhtml:div").attr("class", "bubble-ui");
@@ -139,12 +148,21 @@
         const all = svg.selectAll(".bubble-group");
         const hT = avgVol * 1.1, mT = avgVol * 0.9;
 
-        all.select(".glow").attr("r", d => d.radius + 8)
-            .attr("fill", d => d.pnl >= hT ? "#00d395" : (d.pnl >= mT ? "#2458f0" : "#ff4a5a"));
-        all.select(".main-circle").attr("r", d => d.radius)
+        // Логика подсветки лидера и цветов
+        all.select(".glow")
+            .attr("r", d => d.pnl === maxVolValue ? d.radius + 18 : d.radius + 8)
+            .attr("fill", d => d.pnl >= hT ? "#00d395" : (d.pnl >= mT ? "#2458f0" : "#ff4a5a"))
+            .attr("opacity", d => d.pnl === maxVolValue ? 0.8 : 0.3)
+            .classed("leader-glow", d => d.pnl === maxVolValue);
+
+        all.select(".main-circle")
+            .attr("r", d => d.radius)
+            .attr("stroke", d => d.pnl === maxVolValue ? "#ffffff" : "rgba(255,255,255,0.08)")
+            .attr("stroke-width", d => d.pnl === maxVolValue ? 2 : 1)
             .attr("fill", d => d.pnl >= hT ? "url(#grad-green)" : (d.pnl >= mT ? "url(#grad-blue)" : "url(#grad-red)"));
+
         all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
-        all.select(".title").text(d => d.label.length > 25 ? d.label.slice(0, 22) + '..' : d.label);
+        all.select(".title").text(d => d.label.length > 22 ? d.label.slice(0, 20) + '..' : d.label);
         all.select(".value").text(d => d.share);
         all.select(".volume").text(d => (d.pnl/1000).toFixed(1) + "K");
 
