@@ -2,6 +2,8 @@ from http.server import BaseHTTPRequestHandler
 import cloudscraper
 import json
 from datetime import datetime
+# Добавляем инструменты для чтения параметров URL
+from urllib.parse import urlparse, parse_qs
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -11,9 +13,22 @@ class handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         
+        # --- НОВАЯ ЛОГИКА ТАЙМФРЕЙМОВ ---
+        # Извлекаем параметр 't' из запроса (например, /api?t=7d)
+        query = parse_qs(urlparse(self.path).query)
+        timeframe = query.get('t', ['24h'])[0]
+        
+        # Определяем поле для сортировки и данных
+        sort_field = "volume24hr"
+        if timeframe == "7d":
+            sort_field = "volume7d"
+        elif timeframe == "all":
+            sort_field = "volume"
+        # -------------------------------
+
         scraper = cloudscraper.create_scraper()
-        # Добавляем параметр closed=false, чтобы не брать завершенные рынки
-        url = "https://gamma-api.polymarket.com/events?limit=100&active=true&closed=false&order=volume24hr&dir=desc"
+        # Динамически подставляем sort_field в URL
+        url = f"https://gamma-api.polymarket.com/events?limit=100&active=true&closed=false&order={sort_field}&dir=desc"
         
         try:
             response = scraper.get(url, timeout=15)
@@ -26,22 +41,19 @@ class handler(BaseHTTPRequestHandler):
             now = datetime.now()
             
             for ev in events:
-                # 1. Проверяем наличие торгового объема (чтобы не было пустых шаров)
-                v_raw = ev.get('volume24hr') or ev.get('volume') or 0
+                # Берем данные именно из того поля, которое запросил пользователь
+                v_raw = ev.get(sort_field) or 0
                 if float(v_raw) <= 0:
                     continue
 
-                # 2. Проверяем дату окончания (endDate)
-                # Если дата уже в прошлом, пропускаем это событие
                 end_date_str = ev.get('endDate')
                 if end_date_str:
                     try:
-                        # Парсим дату формата 2024-05-20T00:00:00Z
                         end_date = datetime.strptime(end_date_str.split('T')[0], '%Y-%m-%d')
                         if end_date < now:
                             continue
                     except:
-                        pass # Если дата битая, идем дальше
+                        pass
 
                 slug = ev.get('slug')
                 if slug:
@@ -51,7 +63,7 @@ class handler(BaseHTTPRequestHandler):
                         "link": f"https://polymarket.com/event/{slug}"
                     })
 
-            # Сортируем и берем топ-50 самых свежих и объемных
+            # Оставляем топ-50 для красоты на экране
             final_bubbles = bubbles[:50]
             self.wfile.write(json.dumps(final_bubbles).encode('utf-8'))
             
