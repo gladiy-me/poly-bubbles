@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>PolyBubbles: Pro Packing</title>
+    <title>PolyBubbles: Pro Analytics</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
@@ -22,15 +22,14 @@
             display: flex; justify-content: space-between; align-items: center; pointer-events: none;
         }
         .header * { pointer-events: auto; }
-        .logo-wrapper { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .logo-wrapper { display: flex; align-items: center; text-decoration: none; }
         
-        /* НОВЫЙ СТИЛЬ ЛОГОТИПА */
         .custom-logo {
-            width: 32px; 
-            height: 32px; 
-            object-fit: contain;
+            width: 38px; height: 38px; object-fit: contain;
             filter: drop-shadow(0 0 8px var(--poly-blue-glow));
+            opacity: 0.9; transition: opacity 0.3s;
         }
+        .custom-logo:hover { opacity: 1; }
 
         .timeframes { display: flex; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; }
         .tf-btn {
@@ -39,12 +38,14 @@
             font-weight: 800; transition: all 0.2s;
         }
         .tf-btn.active { background: var(--poly-blue); color: white; box-shadow: 0 0 10px var(--poly-blue-glow); }
+
         .live-status {
             background: rgba(0, 211, 149, 0.1); border: 1px solid rgba(0, 211, 149, 0.2);
             padding: 4px 10px; border-radius: 20px; display: flex; align-items: center; gap: 8px;
         }
         .dot { width: 6px; height: 6px; background: var(--poly-green); border-radius: 50%; box-shadow: 0 0 8px var(--poly-green); }
         .status-text { font-size: 10px; font-weight: 600; color: var(--poly-green); text-transform: uppercase; }
+        
         svg { display: block; width: 100vw; height: 100vh; }
         @keyframes pulse-leader { 0% { opacity: 0.4; } 50% { opacity: 0.9; } 100% { opacity: 0.4; } }
         .leader-glow { animation: pulse-leader 2s infinite ease-in-out; }
@@ -57,8 +58,7 @@
 <body>
 <div class="header">
     <div class="logo-wrapper">
-        <img src="logo.png" alt="PolyBubbles" class="custom-logo">
-        <div style="font-size: 18px; font-weight: 700;">Poly<span style="color: var(--poly-blue);">Bubbles</span></div>
+        <img src="logo.png" alt="Logo" class="custom-logo">
     </div>
     <div class="timeframes">
         <button class="tf-btn active" onclick="changeTF('24h', this)">24H</button>
