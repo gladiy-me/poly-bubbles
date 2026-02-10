@@ -24,12 +24,20 @@
         .header * { pointer-events: auto; }
         .logo-wrapper { display: flex; align-items: center; text-decoration: none; }
         
+        /* УВЕЛИЧЕННЫЙ ПРОЗРАЧНЫЙ ЛОГОТИП */
         .custom-logo {
-            width: 38px; height: 38px; object-fit: contain;
-            filter: drop-shadow(0 0 8px var(--poly-blue-glow));
-            opacity: 0.9; transition: opacity 0.3s;
+            width: 60px; 
+            height: 60px; 
+            object-fit: contain;
+            filter: drop-shadow(0 0 12px var(--poly-blue-glow));
+            opacity: 0.9; 
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
-        .custom-logo:hover { opacity: 1; }
+        .custom-logo:hover { 
+            opacity: 1; 
+            transform: scale(1.1); 
+        }
 
         .timeframes { display: flex; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; }
         .tf-btn {
@@ -58,7 +66,7 @@
 <body>
 <div class="header">
     <div class="logo-wrapper">
-        <img src="logo.png" alt="Logo" class="custom-logo">
+        <img src="logo.png" alt="Logo" class="custom-logo" onclick="window.location.reload()">
     </div>
     <div class="timeframes">
         <button class="tf-btn active" onclick="changeTF('24h', this)">24H</button>
