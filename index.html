@@ -16,16 +16,6 @@
             background-image: radial-gradient(circle at 20% 20%, #0a132e 0%, #030816 100%);
         }
         
-        /* Исправленный хедер: убрали фон и ограничили высоту */
-        .header {
-            position: absolute; top: 0; left: 0; right: 0; padding: 10px 24px;
-            z-index: 100;
-            display: flex; justify-content: space-between; align-items: center; 
-            pointer-events: none; /* Пропускает клики сквозь пустые области */
-        }
-        .header * { pointer-events: auto; }
-
-        /* Логотип теперь независим от высоты хедера */
         .logo-container {
             position: absolute; top: 10px; left: 20px; z-index: 110;
         }
@@ -37,20 +27,19 @@
         }
 
         .custom-logo {
-            width: 180px; /* Немного уменьшили для баланса, но он все еще огромный */
-            height: 180px; 
-            object-fit: contain;
+            width: 180px; height: 180px; object-fit: contain;
             filter: drop-shadow(0 0 15px var(--poly-blue-glow));
-            opacity: 0.85; 
-            transition: all 0.3s ease;
-            cursor: pointer;
-            animation: floating 5s infinite ease-in-out;
+            opacity: 0.85; transition: all 0.3s ease;
+            cursor: pointer; animation: floating 5s infinite ease-in-out;
         }
-        .custom-logo:hover { 
-            opacity: 1; 
-            transform: scale(1.05);
-            animation-play-state: paused;
+        .custom-logo:hover { opacity: 1; transform: scale(1.05); animation-play-state: paused; }
+
+        .header {
+            position: absolute; top: 0; left: 0; right: 0; padding: 10px 24px;
+            z-index: 100; display: flex; justify-content: space-between; align-items: center; 
+            pointer-events: none;
         }
+        .header * { pointer-events: auto; }
 
         .timeframes { display: flex; gap: 6px; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 10px; backdrop-filter: blur(10px); }
         .tf-btn {
@@ -71,7 +60,7 @@
         .bubble-ui { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; pointer-events: none; width: 100%; height: 100%; }
         .title { font-weight: 400; color: #fff; margin-bottom: 2px; padding: 0 4px; }
         .value { font-weight: 800; color: #fff; line-height: 1; }
-        .volume { font-weight: 600; opacity: 0.5; margin-top: 1px; }
+        .volume { font-weight: 600; opacity: 0.6; margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -81,7 +70,8 @@
 </div>
 
 <div class="header">
-    <div style="width: 200px;"></div> <div class="timeframes">
+    <div style="width: 200px;"></div>
+    <div class="timeframes">
         <button class="tf-btn active" onclick="changeTF('24h', this)">24H</button>
         <button class="tf-btn" onclick="changeTF('7d', this)">7D</button>
         <button class="tf-btn" onclick="changeTF('all', this)">ALL</button>
@@ -90,7 +80,7 @@
 </div>
 
 <script>
-    const width = window.innerWidth, height = window.innerHeight, topPadding = 100;
+    const width = window.innerWidth, height = window.innerHeight;
     const svg = d3.select("body").append("svg").attr("width", width).attr("height", height);
     const defs = svg.append("defs");
     let nodes = [];
@@ -132,7 +122,7 @@
         const totalVolume = d3.sum(filteredData, d => d.pnl);
         const maxVol = d3.max(filteredData, d => d.pnl) || 1000;
         const avgVol = d3.mean(filteredData, d => d.pnl) || 500;
-        const radiusScale = d3.scalePow().exponent(0.6).domain([0, maxVol]).range([10, 75]); 
+        const radiusScale = d3.scalePow().exponent(0.6).domain([0, maxVol]).range([15, 80]); 
 
         const activeLabels = filteredData.map(d => d.label);
         nodes = nodes.filter(n => activeLabels.includes(n.label));
@@ -173,15 +163,28 @@
 
         all.select(".glow").attr("r", d => d.pnl === maxVolValue ? d.radius + 15 : d.radius + 6)
             .attr("fill", d => d.pnl >= hT ? "#00d395" : (d.pnl >= mT ? "#2458f0" : "#ff4a5a"));
+        
         all.select(".main-circle").attr("r", d => d.radius)
             .attr("stroke", d => d.pnl === maxVolValue ? "#fff" : "none").attr("stroke-width", 2)
             .attr("fill", d => d.pnl >= hT ? "url(#grad-green)" : (d.pnl >= mT ? "url(#grad-blue)" : "url(#grad-red)"));
+        
         all.select(".text-box").attr("x", d => -d.radius).attr("y", d => -d.radius).attr("width", d => d.radius * 2).attr("height", d => d.radius * 2);
-        all.select(".title").style("font-size", d => Math.max(6, d.radius * 0.23) + "px")
+        
+        all.select(".title").style("font-size", d => Math.max(7, d.radius * 0.2) + "px")
             .text(d => d.radius < 26 ? "" : (d.label.length > 18 ? d.label.slice(0, 16) + '..' : d.label));
-        all.select(".value").style("font-size", d => Math.max(8, d.radius * 0.45) + "px").text(d => d.share);
-        all.select(".volume").style("display", d => d.radius < 35 ? "none" : "block").style("font-size", d => Math.max(5, d.radius * 0.18) + "px")
-            .text(d => d.pnl >= 1000 ? (d.pnl / 1000).toFixed(1) + "K" : Math.round(d.pnl));
+        
+        all.select(".value").style("font-size", d => Math.max(10, d.radius * 0.4) + "px").text(d => d.share);
+        
+        // ИСПРАВЛЕННАЯ ЛОГИКА ОБЪЕМА:
+        all.select(".volume")
+            .style("display", d => d.radius < 30 ? "none" : "block")
+            .style("font-size", d => Math.max(6, d.radius * 0.18) + "px")
+            .text(d => {
+                const vol = parseFloat(d.pnl);
+                if (vol >= 1000) return (vol / 1000).toFixed(1) + "K VOL";
+                if (vol >= 1) return Math.round(vol) + " VOL";
+                return "NEW"; // Если объем совсем крошечный
+            });
 
         simulation.nodes(nodes).alpha(1).restart();
     }
