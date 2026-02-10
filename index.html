@@ -22,12 +22,16 @@
             display: flex; justify-content: space-between; align-items: center; pointer-events: none;
         }
         .header * { pointer-events: auto; }
-        .logo-wrapper { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-        .poly-icon {
-            width: 32px; height: 32px; background: var(--poly-blue); border-radius: 8px;
-            display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px var(--poly-blue-glow);
+        .logo-wrapper { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        
+        /* НОВЫЙ СТИЛЬ ЛОГОТИПА */
+        .custom-logo {
+            width: 32px; 
+            height: 32px; 
+            object-fit: contain;
+            filter: drop-shadow(0 0 8px var(--poly-blue-glow));
         }
-        .poly-icon::after { content: "P"; color: white; font-weight: 800; font-size: 20px; }
+
         .timeframes { display: flex; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 10px; }
         .tf-btn {
             background: transparent; border: none; color: rgba(255,255,255,0.4);
@@ -53,7 +57,7 @@
 <body>
 <div class="header">
     <div class="logo-wrapper">
-        <div class="poly-icon"></div>
+        <img src="logo.png" alt="PolyBubbles" class="custom-logo">
         <div style="font-size: 18px; font-weight: 700;">Poly<span style="color: var(--poly-blue);">Bubbles</span></div>
     </div>
     <div class="timeframes">
@@ -81,7 +85,7 @@
         .force("charge", d3.forceManyBody().strength(5))
         .force("x", d3.forceX(width / 2).strength(0.015))
         .force("y", d3.forceY((height + topPadding) / 2).strength(0.015))
-        .force("collide", d3.forceCollide().radius(d => d.radius + 12).iterations(15)) // Увеличен зазор
+        .force("collide", d3.forceCollide().radius(d => d.radius + 12).iterations(15))
         .alphaTarget(0.15)
         .on("tick", () => {
             nodes.forEach(d => {
@@ -100,20 +104,18 @@
     }
 
     function render(newData) {
-        // УМНАЯ ЛОГИКА: Ограничиваем количество шаров на основе площади экрана
         const screenArea = width * (height - topPadding);
-        const maxBubbles = Math.floor(screenArea / 18000); // 1 шар на каждые 18000 пикселей для "воздуха"
+        const maxBubbles = Math.floor(screenArea / 18000); 
         
         const filteredData = newData.sort((a, b) => b.pnl - a.pnl).slice(0, Math.min(maxBubbles, 40));
         const totalVolume = d3.sum(filteredData, d => d.pnl);
         const maxVol = d3.max(filteredData, d => d.pnl) || 1000;
         const avgVol = d3.mean(filteredData, d => d.pnl) || 500;
 
-        // Контрастное масштабирование: шары стали меньше в среднем
         const radiusScale = d3.scalePow()
             .exponent(0.6)
             .domain([0, maxVol])
-            .range([10, 75]); // Уменьшен максимальный порог до 75
+            .range([10, 75]); 
 
         const activeLabels = filteredData.map(d => d.label);
         nodes = nodes.filter(n => activeLabels.includes(n.label));
@@ -173,7 +175,10 @@
         all.select(".volume")
             .style("display", d => d.radius < 35 ? "none" : "block")
             .style("font-size", d => Math.max(5, d.radius * 0.18) + "px")
-            .text(d => (d.pnl/1000).toFixed(0) + "K VOL");
+            .text(d => {
+                if (d.pnl >= 1000) return (d.pnl / 1000).toFixed(1) + "K VOL";
+                return Math.round(d.pnl) + " VOL";
+            });
 
         simulation.nodes(nodes).alpha(1).restart();
     }
